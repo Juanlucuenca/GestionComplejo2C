@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: gestioncomplejo2c-api   # <- nombre EXACTO de tu App Service
+  AZURE_WEBAPP_NAME: complejoCanchasWEBAPI   # <- nombre EXACTO de tu App Service
   DOTNET_VERSION: '10.0.x'
   SOLUTION: GestionComplejo2C.slnx
   STARTUP_PROJECT: GestionComplejo2C.Presentation
@@ -20,6 +20,9 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # necesario para el login OIDC con Azure
+      contents: read    # necesario para actions/checkout
 
     steps:
       - name: Checkout
@@ -52,6 +55,10 @@ jobs:
           # especiales del password (ej. $).
           DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
         run: |
+          if [ -z "$DB_CONNECTION_STRING" ]; then
+            echo "::error::Falta el secret DB_CONNECTION_STRING"
+            exit 1
+          fi
           dotnet ef database update \
             --project ${{ env.MIGRATIONS_PROJECT }} \
             --startup-project ${{ env.STARTUP_PROJECT }} \
@@ -59,10 +66,18 @@ jobs:
             --no-build \
             --connection "$DB_CONNECTION_STRING"
 
+      - name: Login a Azure (OIDC)
+        if: github.event_name != 'pull_request'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_DBFB7D6E623A4F6589F670983A4F9933 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_DC100DC89AE548798BBADA364B105CF3 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_D7B82F4DF67C4E61A73B517FA8C3AF80 }}
+
       - name: Deploy a Azure App Service
         if: github.event_name != 'pull_request'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          slot-name: 'Production'
           package: ./publish
