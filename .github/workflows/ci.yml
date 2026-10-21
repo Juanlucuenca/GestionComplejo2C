@@ -1,0 +1,37 @@
+name: CI
+
+# Integracion continua: compila el proyecto en cada push y en cada PR.
+# No toca Azure ni la base de datos (eso lo hace deploy.yml).
+on:
+  push:
+    branches-ignore: [ master ]   # master ya compila dentro de deploy.yml
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  SOLUTION: GestionComplejo2C.slnx
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
+      - name: Build
+        run: dotnet build ${{ env.SOLUTION }} --configuration Release --no-restore
+
+      # Cuando el proyecto tenga tests, descomentar:
+      # - name: Test
+      #   run: dotnet test ${{ env.SOLUTION }} --configuration Release --no-build
